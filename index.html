@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image to Text Converter</title>
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* Instruction Modal Styles */
+        .instruction-icon {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background-color: var(--primary-color);
+            color: var(--dark-bg);
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            z-index: 1000;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+            transition: all 0.3s ease;
+        }
+
+        .instruction-icon:hover {
+            transform: scale(1.1);
+        }
+
+        .instruction-modal {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: var(--card-bg);
+            padding: 30px;
+            border-radius: 12px;
+            max-width: 500px;
+            width: 90%;
+            z-index: 1001;
+            box-shadow: 0 5px 30px rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(0, 255, 136, 0.2);
+        }
+
+        .instruction-modal h2 {
+            color: var(--primary-color);
+            margin-top: 0;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .instruction-modal ol {
+            padding-left: 20px;
+        }
+
+        .instruction-modal li {
+            margin-bottom: 15px;
+            color: var(--text-color);
+        }
+
+        .instruction-modal strong {
+            color: var(--primary-color);
+        }
+
+        .close-modal {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            font-size: 1.5em;
+            cursor: pointer;
+            color: var(--text-muted);
+        }
+
+        .overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            z-index: 1000;
+        }
+
+        /* Original Styles */
+        :root {
+            --primary-color: #00ff88;
+            --dark-bg: #121212;
+            --darker-bg: #0a0a0a;
+            --card-bg: #1e1e1e;
+            --text-color: #e0e0e0;
+            --text-muted: #a0a0a0;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: var(--dark-bg);
+            color: var(--text-color);
+            line-height: 1.6;
+        }
+        
+        /* Loading Screen */
+        .loading-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.9);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            display: none;
+        }
+        
+        .loading-spinner {
+            width: 50px;
+            height: 50px;
+            border: 5px solid rgba(0, 255, 136, 0.3);
+            border-radius: 50%;
+            border-top-color: var(--primary-color);
+            animation: spin 1s ease-in-out infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .loading-text {
+            margin-top: 20px;
+            color: var(--primary-color);
+            font-size: 1.2em;
+        }
+
+        /* Main Content Styles */
+        h1 {
+            color: var(--primary-color);
+            text-align: center;
+            margin-bottom: 10px;
+            font-weight: 600;
+            letter-spacing: 1px;
+        }
+        
+        .subtitle {
+            text-align: center;
+            color: var(--text-muted);
+            margin-bottom: 30px;
+            font-size: 1.1em;
+        }
+        
+        .container {
+            background-color: var(--card-bg);
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        
+        .upload-area {
+            border: 2px dashed rgba(0, 255, 136, 0.3);
+            padding: 40px 20px;
+            text-align: center;
+            margin-bottom: 25px;
+            cursor: pointer;
+            border-radius: 8px;
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.1);
+            background-color: rgba(0, 255, 136, 0.03);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .upload-area:hover {
+            border-color: var(--primary-color);
+            background-color: rgba(0, 255, 136, 0.05);
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 255, 136, 0.1);
+        }
+        
+        .upload-area::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(0, 255, 136, 0.1), transparent);
+            transition: 0.5s;
+        }
+        
+        .upload-area:hover::before {
+            left: 100%;
+        }
+        
+        .upload-area p {
+            margin: 0;
+            font-size: 1.1em;
+            color: var(--text-muted);
+            transition: color 0.3s;
+        }
+        
+        .upload-area:hover p {
+            color: var(--primary-color);
+        }
+        
+        .upload-area i {
+            font-size: 2.5em;
+            margin-bottom: 15px;
+            color: var(--primary-color);
+            display: block;
+        }
+        
+        #imagePreview {
+            max-width: 100%;
+            max-height: 300px;
+            margin: 20px auto;
+            display: none;
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+            border: 1px solid rgba(0, 255, 136, 0.2);
+        }
+        
+        #result {
+            margin-top: 25px;
+            padding: 20px;
+            border: 1px solid rgba(0, 255, 136, 0.1);
+            border-radius: 8px;
+            min-height: 150px;
+            background-color: var(--darker-bg);
+            white-space: pre-wrap;
+            font-family: 'Courier New', monospace;
+            position: relative;
+        }
+        
+        #result::before {
+            content: 'Extracted Text:';
+            position: absolute;
+            top: -12px;
+            left: 15px;
+            background-color: var(--card-bg);
+            padding: 0 10px;
+            font-size: 0.9em;
+            color: var(--primary-color);
+            font-family: 'Segoe UI', sans-serif;
+        }
+        
+        button {
+            background-color: var(--primary-color);
+            color: #121212;
+            border: none;
+            padding: 12px 30px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 15px 0;
+            cursor: pointer;
+            border-radius: 50px;
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            box-shadow: 0 4px 15px rgba(0, 255, 136, 0.3);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        button:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(0, 255, 136, 0.4);
+        }
+        
+        button:active {
+            transform: translateY(1px);
+        }
+        
+        button:disabled {
+            background-color: #555;
+            color: #888;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        
+        button::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 5px;
+            height: 5px;
+            background: rgba(255, 255, 255, 0.5);
+            opacity: 0;
+            border-radius: 100%;
+            transform: scale(1, 1) translate(-50%);
+            transform-origin: 50% 50%;
+        }
+        
+        button:focus:not(:active)::after {
+            animation: ripple 0.6s ease-out;
+        }
+        
+        @keyframes ripple {
+            0% {
+                transform: scale(0, 0);
+                opacity: 0.5;
+            }
+            100% {
+                transform: scale(20, 20);
+                opacity: 0;
+            }
+        }
+        
+        .progress-container {
+            margin: 25px 0;
+            display: none;
+        }
+        
+        progress {
+            width: 100%;
+            height: 8px;
+            border-radius: 4px;
+            background-color: var(--darker-bg);
+            overflow: hidden;
+        }
+        
+        progress::-webkit-progress-bar {
+            background-color: var(--darker-bg);
+            border-radius: 4px;
+        }
+        
+        progress::-webkit-progress-value {
+            background-color: var(--primary-color);
+            border-radius: 4px;
+            transition: width 0.3s ease;
+        }
+        
+        progress::-moz-progress-bar {
+            background-color: var(--primary-color);
+            border-radius: 4px;
+        }
+        
+        .status {
+            text-align: center;
+            font-style: italic;
+            color: var(--text-muted);
+            margin-top: 10px;
+            font-size: 0.9em;
+        }
+        
+        .file-input {
+            display: none;
+        }
+        
+        .success-message {
+            color: var(--primary-color);
+            text-align: center;
+            font-weight: 600;
+            margin-top: 15px;
+            opacity: 0;
+            transform: translateY(10px);
+            transition: all 0.4s ease;
+        }
+        
+        .show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        
+        @media (max-width: 600px) {
+            .container {
+                padding: 20px;
+            }
+            
+            .upload-area {
+                padding: 30px 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Instruction Icon and Modal -->
+    <div class="instruction-icon" id="instructionIcon">
+        <i class="fas fa-question"></i>
+    </div>
+
+    <div class="overlay" id="overlay"></div>
+
+    <div class="instruction-modal" id="instructionModal">
+        <span class="close-modal" id="closeModal">&times;</span>
+        <h2>How to Use</h2>
+        <ol>
+            <li><strong>Upload Your Image</strong><br>
+                Click the "Upload Image" button.<br>
+                Choose an image from your device (JPG, PNG, or JPEG format).<br>
+                You can also drag and drop the image into the upload area.</li>
+            
+            <li><strong>Wait for the Magic</strong><br>
+                Our AI will automatically scan the image.<br>
+                Processing takes just a few seconds.</li>
+            
+            <li><strong>View Your Text</strong><br>
+                The extracted text will appear in the results box below.</li>
+            
+            <li><strong>Start Over (Optional)</strong><br>
+                Want to try another image? Just click the "Upload Another Image" button.</li>
+            
+            <li><strong>Note:</strong> If your image is in a bad condition or contains cursive handwriting, 
+                our software may not recognize it properly and could give inaccurate results.</li>
+        </ol>
+    </div>
+
+    <!-- Loading Screen -->
+    <div class="loading-screen" id="loadingScreen">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">Processing...</div>
+    </div>
+    
+    <!-- Main Content -->
+    <div class="container">
+        <h1>IMAGE TO TEXT CONVERTER</h1>
+        <p class="subtitle">Upload an image and extract text instantly with OCR technology</p>
+        
+        <div class="upload-area" id="dropArea">
+            <i>📁</i>
+            <p>Drag & drop an image here or click to select</p>
+            <input type="file" id="fileInput" accept="image/*" class="file-input">
+        </div>
+        
+        <img id="imagePreview" alt="Image Preview">
+        
+        <div class="progress-container" id="progressContainer">
+            <progress id="progressBar" value="0" max="100"></progress>
+            <p class="status" id="status">Initializing OCR engine...</p>
+        </div>
+        
+        <button id="convertBtn" disabled>
+            <span id="buttonText">CONVERT TO TEXT</span>
+        </button>
+        
+        <div class="success-message" id="successMessage">Text extracted successfully! 🎉</div>
+        
+        <div id="result"></div>
+    </div>
+
+    <script>
+        // Instruction Modal Logic
+        const instructionIcon = document.getElementById('instructionIcon');
+        const instructionModal = document.getElementById('instructionModal');
+        const overlay = document.getElementById('overlay');
+        const closeModal = document.getElementById('closeModal');
+
+        instructionIcon.addEventListener('click', () => {
+            instructionModal.style.display = 'block';
+            overlay.style.display = 'block';
+        });
+
+        closeModal.addEventListener('click', () => {
+            instructionModal.style.display = 'none';
+            overlay.style.display = 'none';
+        });
+
+        overlay.addEventListener('click', () => {
+            instructionModal.style.display = 'none';
+            overlay.style.display = 'none';
+        });
+
+        // Original Script
+        // Loading Screen Element
+        const loadingScreen = document.getElementById('loadingScreen');
+        
+        // Function to show loading screen for 3 seconds
+        function showLoading() {
+            loadingScreen.style.display = 'flex';
+            setTimeout(() => {
+                loadingScreen.style.display = 'none';
+            }, 3000);
+        }
+        
+        // OCR Elements
+        const dropArea = document.getElementById('dropArea');
+        const fileInput = document.getElementById('fileInput');
+        const imagePreview = document.getElementById('imagePreview');
+        const convertBtn = document.getElementById('convertBtn');
+        const buttonText = document.getElementById('buttonText');
+        const resultDiv = document.getElementById('result');
+        const progressContainer = document.getElementById('progressContainer');
+        const progressBar = document.getElementById('progressBar');
+        const statusText = document.getElementById('status');
+        const successMessage = document.getElementById('successMessage');
+        
+        // Add loading screen to all buttons
+        document.querySelectorAll('button').forEach(button => {
+            button.addEventListener('click', function() {
+                showLoading();
+            });
+        });
+        
+        dropArea.addEventListener('click', () => {
+            fileInput.click();
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length) {
+                handleFile(e.target.files[0]);
+            }
+        });
+
+        dropArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropArea.style.borderColor = 'var(--primary-color)';
+            dropArea.style.backgroundColor = 'rgba(0, 255, 136, 0.1)';
+        });
+
+        dropArea.addEventListener('dragleave', () => {
+            dropArea.style.borderColor = 'rgba(0, 255, 136, 0.3)';
+            dropArea.style.backgroundColor = 'rgba(0, 255, 136, 0.03)';
+        });
+
+        dropArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropArea.style.borderColor = 'rgba(0, 255, 136, 0.3)';
+            dropArea.style.backgroundColor = 'rgba(0, 255, 136, 0.03)';
+            
+            if (e.dataTransfer.files.length) {
+                handleFile(e.dataTransfer.files[0]);
+            }
+        });
+
+        function handleFile(file) {
+            if (!file.type.match('image.*')) {
+                alert('Please select an image file (JPEG, PNG, etc.)');
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                imagePreview.src = e.target.result;
+                imagePreview.style.display = 'block';
+                convertBtn.disabled = false;
+                successMessage.classList.remove('show');
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function fireConfetti() {
+            confetti({
+                particleCount: 150,
+                spread: 70,
+                origin: { y: 0.6 },
+                colors: ['#00ff88', '#00cc6a', '#00a857'],
+                shapes: ['circle', 'square']
+            });
+        }
+
+        convertBtn.addEventListener('click', () => {
+            if (!imagePreview.src) return;
+
+            showLoading();
+            
+            setTimeout(() => {
+                progressContainer.style.display = 'block';
+                convertBtn.disabled = true;
+                buttonText.textContent = 'PROCESSING...';
+                resultDiv.textContent = '';
+                successMessage.classList.remove('show');
+
+                Tesseract.recognize(
+                    imagePreview.src,
+                    'eng',
+                    {
+                        logger: m => {
+                            if (m.status === 'recognizing text') {
+                                progressBar.value = m.progress * 100;
+                                statusText.textContent = `Processing: ${Math.round(m.progress * 100)}%`;
+                            } else {
+                                statusText.textContent = m.status;
+                            }
+                            console.log(m);
+                        }
+                    }
+                ).then(({ data: { text } }) => {
+                    resultDiv.textContent = text;
+                    progressContainer.style.display = 'none';
+                    convertBtn.disabled = false;
+                    buttonText.textContent = 'CONVERT TO TEXT';
+                    successMessage.classList.add('show');
+                    fireConfetti();
+                }).catch(err => {
+                    console.error(err);
+                    resultDiv.textContent = 'Error occurred during text recognition. Please try another image.';
+                    progressContainer.style.display = 'none';
+                    convertBtn.disabled = false;
+                    buttonText.textContent = 'TRY AGAIN';
+                });
+            }, 3000);
+        });
+    </script>
+</body>
+</html>
